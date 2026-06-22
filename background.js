@@ -67,11 +67,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+// Helper function to clean up song titles for better search matching
+function cleanSongTitle(title) {
+  if (!title) return '';
+  let cleaned = title;
+  
+  // Remove text inside parentheses or brackets that contain common descriptors
+  // Examples: (Live), (Live Session), (Official Video), [Official Audio], (feat. Artist), (ft. Artist)
+  cleaned = cleaned.replace(/\s*[([][^)]*(live|session|official|video|audio|remaster|edit|clip|lyrics|ft\.|feat\.)[^)]*[)\]]/gi, '');
+  
+  // Remove trailing descriptors like "- Live", "- Remix", etc.
+  cleaned = cleaned.replace(/\s*-\s*(live|remastered|remix|edit|lyrics|official video|official audio)\b.*/gi, '');
+  
+  // Remove featured artists outside of brackets
+  cleaned = cleaned.replace(/\s*(feat\.|feat|ft\.|ft)\b.*/gi, '');
+  
+  // Remove double spaces
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  
+  return cleaned;
+}
+
 // Helper function to query the GetSongBPM API
 async function fetchSongDetailsFromGetSongBPM(apiKey, title, artist) {
+  const cleanTitle = cleanSongTitle(title);
+  const cleanArtist = cleanSongTitle(artist);
+  
+  console.log(`[YTM Key Attributor Background] Original query: "${title}" by "${artist}". Cleaned query: "${cleanTitle}" by "${cleanArtist}"`);
+  
   // Query endpoint using search/both (search by song & artist)
   // Format is "song:TITLE artist:NAME"
-  const lookupQuery = `song:${title} artist:${artist}`;
+  const lookupQuery = `song:${cleanTitle} artist:${cleanArtist}`;
   const url = `https://api.getsong.co/search/?api_key=${encodeURIComponent(apiKey)}&type=both&lookup=${encodeURIComponent(lookupQuery)}`;
   
   const response = await fetch(url);
