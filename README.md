@@ -2,7 +2,7 @@
 
 A lightweight, modern, and beautiful Chrome extension built for personal use that adds musical attributes (Key and BPM/Tempo) to currently playing tracks on the **YouTube Music** player bar. 
 
-It queries the **GetSongBPM** database to retrieve song features and displays them as a native-looking badge right next to the song title.
+It queries the [GetSongBPM](https://getsongbpm.com) database to retrieve song features and displays them as a native-looking badge right next to the song title.
 
 ---
 
