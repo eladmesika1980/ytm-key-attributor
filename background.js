@@ -95,30 +95,57 @@ async function fetchSongDetailsFromGetSongBPM(apiKey, title, artist) {
   
   console.log(`[YTM Key Attributor Background] Original query: "${title}" by "${artist}". Cleaned query: "${cleanTitle}" by "${cleanArtist}"`);
   
-  // Query endpoint using search/both (search by song & artist)
-  // Format is "song:TITLE artist:NAME"
-  const lookupQuery = `song:${cleanTitle} artist:${cleanArtist}`;
-  const url = `https://api.getsong.co/search/?api_key=${encodeURIComponent(apiKey)}&type=both&lookup=${encodeURIComponent(lookupQuery)}`;
-  
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`HTTP error ${response.status}`);
+  // Try 1: Precise search using type=both
+  try {
+    const lookupQuery = `song:${cleanTitle} artist:${cleanArtist}`;
+    const url = `https://api.getsong.co/search/?api_key=${encodeURIComponent(apiKey)}&type=both&lookup=${encodeURIComponent(lookupQuery)}&limit=5`;
+    const response = await fetch(url);
+    if (response.ok) {
+      const payload = await response.json();
+      if (payload.results && payload.results.length > 0) {
+        console.log('[YTM Key Attributor Background] Match found using type=both:', payload.results[0]);
+        const result = payload.results[0];
+        return {
+          key: result.key || 'Unknown',
+          bpm: result.tempo || 'Unknown',
+          camelot: parseKeyToCamelot(result.key) || 'Unknown'
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('[YTM Key Attributor Background] type=both search failed:', e);
   }
   
-  const payload = await response.json();
-  if (payload.results && payload.results.length > 0) {
-    const result = payload.results[0];
-    const key = result.key || 'Unknown';
-    const bpm = result.tempo || 'Unknown';
-    const camelot = parseKeyToCamelot(key);
-    
-    return {
-      key: key,
-      bpm: bpm,
-      camelot: camelot || 'Unknown'
-    };
+  // Try 2: Fallback search using type=song and filtering by artist name in JS
+  console.log('[YTM Key Attributor Background] type=both returned no results. Trying type=song fallback...');
+  try {
+    const url = `https://api.getsong.co/search/?api_key=${encodeURIComponent(apiKey)}&type=song&lookup=${encodeURIComponent(cleanTitle)}&limit=30`;
+    const response = await fetch(url);
+    if (response.ok) {
+      const payload = await response.json();
+      if (payload.results && payload.results.length > 0) {
+        // Find a result where the artist matches
+        const artistLower = cleanArtist.toLowerCase().trim();
+        const matchedResult = payload.results.find(result => {
+          const resArtistLower = (result.artist || '').toLowerCase().trim();
+          return resArtistLower.includes(artistLower) || artistLower.includes(resArtistLower);
+        });
+        
+        if (matchedResult) {
+          console.log('[YTM Key Attributor Background] Match found using type=song fallback:', matchedResult);
+          return {
+            key: matchedResult.key || 'Unknown',
+            bpm: matchedResult.tempo || 'Unknown',
+            camelot: parseKeyToCamelot(matchedResult.key) || 'Unknown'
+          };
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[YTM Key Attributor Background] type=song search failed:', e);
   }
   
+  console.log('[YTM Key Attributor Background] No matches found for song.');
   return null;
 }
 
