@@ -123,11 +123,16 @@ async function fetchSongDetailsFromGetSongBPM(apiKey, title, artist) {
     const response = await fetch(url);
     if (response.ok) {
       const payload = await response.json();
+      console.log('[YTM Key Attributor Background] Fallback results found:', payload.results);
       if (payload.results && payload.results.length > 0) {
         // Find a result where the artist matches
         const artistLower = cleanArtist.toLowerCase().trim();
+        console.log('[YTM Key Attributor Background] Comparing against artist:', artistLower);
         const matchedResult = payload.results.find(result => {
-          const resArtistLower = (result.artist || '').toLowerCase().trim();
+          // Check both result.artist and result.artist_name in case of API property naming mismatch
+          const resArtistName = result.artist || result.artist_name || '';
+          const resArtistLower = resArtistName.toLowerCase().trim();
+          console.log(`[YTM Key Attributor Background] Checking result: "${result.song_title}" by "${resArtistName}"`);
           return resArtistLower.includes(artistLower) || artistLower.includes(resArtistLower);
         });
         
@@ -138,6 +143,8 @@ async function fetchSongDetailsFromGetSongBPM(apiKey, title, artist) {
             bpm: matchedResult.tempo || 'Unknown',
             camelot: parseKeyToCamelot(matchedResult.key) || 'Unknown'
           };
+        } else {
+          console.log('[YTM Key Attributor Background] No artist match in fallback list.');
         }
       }
     }
