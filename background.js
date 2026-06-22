@@ -31,8 +31,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       
       try {
-        const data = await fetchSongDetailsFromGetSongBPM(apiKey, title, artist);
-        if (data) {
+        const resultData = await fetchSongDetailsFromGetSongBPM(apiKey, title, artist);
+        if (resultData && resultData.success) {
+          const data = {
+            key: resultData.key,
+            bpm: resultData.bpm,
+            camelot: resultData.camelot
+          };
           // Add to cache (evicting oldest if max size reached)
           if (cache.size >= MAX_CACHE_SIZE) {
             const firstKey = cache.keys().next().value;
@@ -41,7 +46,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           cache.set(cacheKey, data);
           sendResponse({ data });
         } else {
-          sendResponse({ error: 'Song not found in database' });
+          sendResponse({ 
+            error: 'Song not found in database',
+            rawResults: resultData ? resultData.rawResults : []
+          });
         }
       } catch (err) {
         console.error('API Error:', err);
@@ -95,6 +103,8 @@ async function fetchSongDetailsFromGetSongBPM(apiKey, title, artist) {
   
   console.log(`[YTM Key Attributor Background] Original query: "${title}" by "${artist}". Cleaned query: "${cleanTitle}" by "${cleanArtist}"`);
   
+  let allRawResults = [];
+
   // Try 1: Precise search using type=both
   try {
     const lookupQuery = `song:${cleanTitle} artist:${cleanArtist}`;
@@ -106,10 +116,14 @@ async function fetchSongDetailsFromGetSongBPM(apiKey, title, artist) {
         console.log('[YTM Key Attributor Background] Match found using type=both:', payload.results[0]);
         const result = payload.results[0];
         return {
+          success: true,
           key: result.key || 'Unknown',
           bpm: result.tempo || 'Unknown',
           camelot: parseKeyToCamelot(result.key) || 'Unknown'
         };
+      }
+      if (payload.results) {
+        allRawResults = allRawResults.concat(payload.results);
       }
     }
   } catch (e) {
@@ -125,6 +139,7 @@ async function fetchSongDetailsFromGetSongBPM(apiKey, title, artist) {
       const payload = await response.json();
       console.log('[YTM Key Attributor Background] Fallback results found:', payload.results);
       if (payload.results && payload.results.length > 0) {
+        allRawResults = allRawResults.concat(payload.results);
         // Find a result where the artist matches
         const artistLower = cleanArtist.toLowerCase().trim();
         console.log('[YTM Key Attributor Background] Comparing against artist:', artistLower);
@@ -139,6 +154,7 @@ async function fetchSongDetailsFromGetSongBPM(apiKey, title, artist) {
         if (matchedResult) {
           console.log('[YTM Key Attributor Background] Match found using type=song fallback:', matchedResult);
           return {
+            success: true,
             key: matchedResult.key || 'Unknown',
             bpm: matchedResult.tempo || 'Unknown',
             camelot: parseKeyToCamelot(matchedResult.key) || 'Unknown'
@@ -153,7 +169,10 @@ async function fetchSongDetailsFromGetSongBPM(apiKey, title, artist) {
   }
   
   console.log('[YTM Key Attributor Background] No matches found for song.');
-  return null;
+  return {
+    success: false,
+    rawResults: allRawResults
+  };
 }
 
 // Function to test the API connection with a search query

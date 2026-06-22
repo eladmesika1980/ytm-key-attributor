@@ -422,13 +422,18 @@ function observePlayerBar() {
 // Extracts metadata and requests Key/BPM if changed
 function triggerUpdate() {
   const metadata = getSongMetadata();
-  if (!metadata) return;
+  if (!metadata) {
+    console.log('[YTM Key Attributor] No song metadata found in DOM.');
+    return;
+  }
   
   // Only query if the song has changed
   if (metadata.title !== currentTitle || metadata.artist !== currentArtist) {
     currentTitle = metadata.title;
     currentArtist = metadata.artist;
     activeData = null;
+    
+    console.log('[YTM Key Attributor] Song changed. Title:', currentTitle, '| Artist:', currentArtist);
     
     // Close override popover if open from a previous track
     closeOverridePopover();
@@ -448,6 +453,7 @@ function triggerUpdate() {
       const overrides = storage.keyOverrides || {};
       
       if (overrides[lookupKey]) {
+        console.log('[YTM Key Attributor] Found manual override:', overrides[lookupKey]);
         // Load manual override
         activeData = {
           ...overrides[lookupKey],
@@ -455,6 +461,7 @@ function triggerUpdate() {
         };
         renderBadge(activeData);
       } else {
+        console.log('[YTM Key Attributor] Requesting key/BPM from background script...');
         // Step 2: Fallback to background query (API fetch)
         chrome.runtime.sendMessage(
           { action: 'fetchKeyBpm', title: currentTitle, artist: currentArtist },
@@ -464,12 +471,19 @@ function triggerUpdate() {
               return; // Song changed while waiting for API, discard response
             }
             
+            console.log('[YTM Key Attributor] Background script response:', response);
+            
             if (response && response.data) {
               activeData = response.data;
               renderBadge(activeData);
             } else if (response && response.error === 'API_KEY_MISSING') {
+              console.warn('[YTM Key Attributor] API Key is missing. Setup required.');
               renderSetupState();
             } else {
+              console.warn('[YTM Key Attributor] Song details not found or error occurred:', response ? response.error : 'No response');
+              if (response && response.rawResults) {
+                console.log('[YTM Key Attributor] Raw search results list returned by API:', response.rawResults);
+              }
               renderNotFoundState(response ? response.error : 'Not Found');
             }
           }
@@ -513,9 +527,9 @@ function getOrCreateBadgeElements() {
   const playerBar = document.querySelector('ytmusic-player-bar');
   if (!playerBar) return null;
   
-  const infoWrapper = playerBar.querySelector('.content-info-wrapper') || 
-                      playerBar.querySelector('.middle-controls');
-  if (!infoWrapper) return null;
+  // Target the .middle-controls element so the badge renders horizontally next to the metadata column
+  const middleControls = playerBar.querySelector('.middle-controls');
+  if (!middleControls) return null;
   
   let container = document.getElementById('ytm-key-attributor-badge-container');
   if (!container) {
@@ -543,7 +557,7 @@ function getOrCreateBadgeElements() {
     container.appendChild(tooltip);
     container.appendChild(popover);
     
-    infoWrapper.appendChild(container);
+    middleControls.appendChild(container);
   }
   
   return {
