@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YTM Key Attributor Settings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #07080b;
+      --card-bg: rgba(18, 20, 26, 0.65);
+      --card-border: rgba(255, 255, 255, 0.07);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --primary-gradient: linear-gradient(135deg, #7928ca 0%, #0070f3 100%);
+      --success-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      --accent-color: #0070f3;
+      --accent-glow: rgba(0, 112, 243, 0.35);
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Ambient background glows */
+    body::before {
+      content: "";
+      position: absolute;
+      width: 450px;
+      height: 450px;
+      background: radial-gradient(circle, rgba(121, 40, 202, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+      top: -10%;
+      left: -10%;
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    body::after {
+      content: "";
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(0, 112, 243, 0.12) 0%, rgba(0, 0, 0, 0) 70%);
+      bottom: -10%;
+      right: -10%;
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 620px;
+      padding: 24px;
+      z-index: 1;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      padding: 40px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(15px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+
+    .logo-container {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 64px;
+      height: 64px;
+      border-radius: 20px;
+      background: var(--primary-gradient);
+      box-shadow: 0 8px 24px rgba(121, 40, 202, 0.3);
+      margin-bottom: 20px;
+    }
+
+    .logo-container svg {
+      width: 32px;
+      height: 32px;
+      color: #fff;
+    }
+
+    h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(to right, #ffffff 30%, #a0a0a0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .form-group {
+      margin-bottom: 28px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #e5e7eb;
+      margin-bottom: 10px;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+
+    .input-container {
+      position: relative;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-family: inherit;
+      font-size: 14px;
+      color: #fff;
+      transition: all 0.3s;
+      outline: none;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent-color);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    .helper-text {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 8px;
+      line-height: 1.4;
+    }
+
+    .helper-text a {
+      color: var(--accent-color);
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+
+    .helper-text a:hover {
+      text-decoration: underline;
+    }
+
+    /* Dropdown customization */
+    select {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.35) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 16px center;
+      background-size: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 14px 40px 14px 16px;
+      font-family: inherit;
+      font-size: 14px;
+      color: #fff;
+      appearance: none;
+      outline: none;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+
+    select:focus {
+      border-color: var(--accent-color);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    /* Switch toggle */
+    .switch-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 0;
+    }
+
+    .switch-label-desc {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .switch-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #fff;
+    }
+
+    .switch-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 48px;
+      height: 26px;
+      flex-shrink: 0;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.1);
+      transition: .3s;
+      border-radius: 34px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #fff;
+      transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 50%;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    input:checked + .slider {
+      background: var(--primary-gradient);
+    }
+
+    input:focus + .slider {
+      box-shadow: 0 0 1px var(--accent-color);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(22px);
+    }
+
+    /* Theme colors grid */
+    .theme-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .theme-btn {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1.5px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 12px 8px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.25s ease;
+    }
+
+    .theme-btn:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .theme-btn.active {
+      border-color: var(--accent-color);
+      background: rgba(0, 112, 243, 0.08);
+      box-shadow: inset 0 0 8px rgba(0, 112, 243, 0.1);
+    }
+
+    .color-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .theme-btn[data-theme="green"] .color-dot { background-color: #1db954; }
+    .theme-btn[data-theme="blue"] .color-dot { background-color: #0070f3; }
+    .theme-btn[data-theme="purple"] .color-dot { background-color: #7928ca; }
+    .theme-btn[data-theme="gray"] .color-dot { background-color: #aaaaaa; }
+
+    .theme-name {
+      font-size: 11px;
+      font-weight: 500;
+      color: #e5e7eb;
+    }
+
+    /* Footer actions */
+    .footer-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 40px;
+    }
+
+    button {
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 12px;
+      padding: 14px 24px;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      flex: 2;
+      background: var(--primary-gradient);
+      border: none;
+      color: #fff;
+      box-shadow: 0 4px 15px rgba(121, 40, 202, 0.25);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 6px 20px rgba(121, 40, 202, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .btn-secondary {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #e5e7eb;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #10b981;
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 9999;
+    }
+
+    .toast.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .toast.error {
+      background: #ef4444;
+      box-shadow: 0 10px 25px rgba(239, 68, 68, 0.3);
+    }
+
+    /* Connection Test Indicator */
+    .test-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      margin-top: 10px;
+      opacity: 0;
+      height: 0;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .test-indicator.show {
+      opacity: 1;
+      height: 24px;
+    }
+
+    .test-indicator svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .test-indicator.loading { color: #e5e7eb; }
+    .test-indicator.success { color: #10b981; }
+    .test-indicator.failed { color: #ef4444; }
+
+    .spin {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Manual Overrides Section styling */
+    .overrides-section {
+      margin-top: 36px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 24px;
+    }
+
+    .overrides-list {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 200px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .overrides-list::-webkit-scrollbar {
+      width: 6px;
+    }
+    .overrides-list::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+    }
+    .overrides-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+    .overrides-list::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .override-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 13px;
+      transition: all 0.2s ease;
+      animation: fadeInItem 0.3s ease;
+    }
+
+    @keyframes fadeInItem {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .override-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.09);
+    }
+
+    .override-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow: hidden;
+      margin-right: 12px;
+      text-align: left;
+    }
+
+    .override-song {
+      font-weight: 600;
+      color: #fff;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    .override-artist {
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    .override-values-delete {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+
+    .override-badge {
+      background: rgba(0, 112, 243, 0.12);
+      color: #0070f3;
+      border: 1px solid rgba(0, 112, 243, 0.25);
+      padding: 3px 8px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .override-delete {
+      background: transparent;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .override-delete:hover {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ff6b6b;
+    }
+
+    .override-delete svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .overrides-empty {
+      text-align: center;
+      padding: 24px;
+      color: var(--text-muted);
+      font-size: 13px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px dashed rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <header>
+        <div class="logo-container">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+          </svg>
+        </div>
+        <h1>YTM Key Attributor</h1>
+        <p class="subtitle">Personalize your YouTube Music metadata enrichments</p>
+      </header>
+
+      <form id="settingsForm">
+        <!-- API Setup -->
+        <div class="form-group">
+          <label for="apiKey">GetSongBPM API Key</label>
+          <div class="input-container">
+            <input type="text" id="apiKey" placeholder="Enter your getsongbpm api_key..." autocomplete="off">
+          </div>
+          <p class="helper-text">
+            Don't have a key? 
+            <a href="https://getsongbpm.com/api" target="_blank" rel="noopener noreferrer">Register free on GetSongBPM.com</a> 
+            to request your personal key.
+          </p>
+          <div id="testIndicator" class="test-indicator">
+            <!-- Dynamic Icon injected via JS -->
+            <span id="testMessage">Testing credentials...</span>
+          </div>
+        </div>
+
+        <!-- Display Options -->
+        <div class="form-group">
+          <label for="notation">Musical Key Notation</label>
+          <select id="notation">
+            <option value="both">Both Standard & Camelot (e.g. F#m (11A))</option>
+            <option value="standard">Standard Notation Only (e.g. F#m)</option>
+            <option value="camelot">Camelot Code Only (e.g. 11A)</option>
+          </select>
+        </div>
+
+        <!-- Show BPM Toggle -->
+        <div class="form-group">
+          <div class="switch-container">
+            <div class="switch-label-desc">
+              <span class="switch-title">Display Tempo (BPM)</span>
+              <span class="switch-desc">Add tempo details to the song badge</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="showBpm" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Badge Color Theme -->
+        <div class="form-group">
+          <label>Badge Color Theme</label>
+          <div class="theme-grid" id="themeGrid">
+            <div class="theme-btn active" data-theme="green">
+              <span class="color-dot"></span>
+              <span class="theme-name">Spotify Green</span>
+            </div>
+            <div class="theme-btn" data-theme="blue">
+              <span class="color-dot"></span>
+              <span class="theme-name">Electric Blue</span>
+            </div>
+            <div class="theme-btn" data-theme="purple">
+              <span class="color-dot"></span>
+              <span class="theme-name">Amethyst Purple</span>
+            </div>
+            <div class="theme-btn" data-theme="gray">
+              <span class="color-dot"></span>
+              <span class="theme-name">Charcoal Gray</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Manual Overrides list -->
+        <div class="form-group overrides-section">
+          <label>Manual Key Overrides</label>
+          <div id="overridesList" class="overrides-list">
+            <!-- Dynamically populated via options.js -->
+          </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="footer-actions">
+          <button type="button" class="btn-secondary" id="btnTest">Test Key</button>
+          <button type="submit" class="btn-primary" id="btnSave">Save Settings</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Alert -->
+  <div id="toast" class="toast">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" id="toastIcon">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+    </svg>
+    <span id="toastText">Settings saved successfully!</span>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
