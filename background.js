@@ -112,18 +112,18 @@ async function fetchSongDetailsFromGetSongBPM(apiKey, title, artist) {
     const response = await fetch(url);
     if (response.ok) {
       const payload = await response.json();
-      if (payload.results && payload.results.length > 0) {
-        console.log('[YTM Key Attributor Background] Match found using type=both:', payload.results[0]);
-        const result = payload.results[0];
+      if (payload.search && payload.search.length > 0) {
+        console.log('[YTM Key Attributor Background] Match found using type=both:', payload.search[0]);
+        const result = payload.search[0];
         return {
           success: true,
-          key: result.key || 'Unknown',
+          key: result.key_of || 'Unknown',
           bpm: result.tempo || 'Unknown',
-          camelot: parseKeyToCamelot(result.key) || 'Unknown'
+          camelot: parseKeyToCamelot(result.key_of) || 'Unknown'
         };
       }
-      if (payload.results) {
-        allRawResults = allRawResults.concat(payload.results);
+      if (payload.search) {
+        allRawResults = allRawResults.concat(payload.search);
       }
     }
   } catch (e) {
@@ -137,17 +137,16 @@ async function fetchSongDetailsFromGetSongBPM(apiKey, title, artist) {
     const response = await fetch(url);
     if (response.ok) {
       const payload = await response.json();
-      console.log('[YTM Key Attributor Background] Fallback results found:', payload.results);
-      if (payload.results && payload.results.length > 0) {
-        allRawResults = allRawResults.concat(payload.results);
+      console.log('[YTM Key Attributor Background] Fallback results found:', payload.search);
+      if (payload.search && payload.search.length > 0) {
+        allRawResults = allRawResults.concat(payload.search);
         // Find a result where the artist matches
         const artistLower = cleanArtist.toLowerCase().trim();
         console.log('[YTM Key Attributor Background] Comparing against artist:', artistLower);
-        const matchedResult = payload.results.find(result => {
-          // Check both result.artist and result.artist_name in case of API property naming mismatch
-          const resArtistName = result.artist || result.artist_name || '';
+        const matchedResult = payload.search.find(result => {
+          const resArtistName = result.artist ? (result.artist.name || '') : '';
           const resArtistLower = resArtistName.toLowerCase().trim();
-          console.log(`[YTM Key Attributor Background] Checking result: "${result.song_title}" by "${resArtistName}"`);
+          console.log(`[YTM Key Attributor Background] Checking result: "${result.title}" by "${resArtistName}"`);
           return resArtistLower.includes(artistLower) || artistLower.includes(resArtistLower);
         });
         
@@ -155,9 +154,9 @@ async function fetchSongDetailsFromGetSongBPM(apiKey, title, artist) {
           console.log('[YTM Key Attributor Background] Match found using type=song fallback:', matchedResult);
           return {
             success: true,
-            key: matchedResult.key || 'Unknown',
+            key: matchedResult.key_of || 'Unknown',
             bpm: matchedResult.tempo || 'Unknown',
-            camelot: parseKeyToCamelot(matchedResult.key) || 'Unknown'
+            camelot: parseKeyToCamelot(matchedResult.key_of) || 'Unknown'
           };
         } else {
           console.log('[YTM Key Attributor Background] No artist match in fallback list.');
@@ -184,9 +183,8 @@ async function testApiConnection(apiKey) {
     throw new Error(`HTTP error ${response.status}`);
   }
   const payload = await response.json();
-  // If the response is valid and parsed successfully, authentication works.
-  // Note that if the payload has an error or is an empty results array, it's still a valid network connection.
-  return payload !== null;
+  // Verify that the payload actually has the 'search' array containing results
+  return payload && payload.search && payload.search.length > 0;
 }
 
 // Key parser to map GetSongBPM key names to Camelot Wheel notation
