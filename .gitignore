@@ -13,3 +13,6 @@ secrets*
 credentials*
 *.key
 *.token
+
+# Local scratch scripts
+scratch/

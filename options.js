@@ -1,25 +1,16 @@
+// Options / Settings page logic for local audio tuner extension.
+
 // Elements
 const form = document.getElementById('settingsForm');
-const apiKeyInput = document.getElementById('apiKey');
 const notationSelect = document.getElementById('notation');
 const showBpmInput = document.getElementById('showBpm');
 const themeButtons = document.querySelectorAll('.theme-btn');
-const btnTest = document.getElementById('btnTest');
-const testIndicator = document.getElementById('testIndicator');
-const testMessage = document.getElementById('testMessage');
 const toast = document.getElementById('toast');
 const toastText = document.getElementById('toastText');
 const toastIcon = document.getElementById('toastIcon');
 const overridesList = document.getElementById('overridesList');
 
 let selectedTheme = 'green';
-
-// SVG Icons for Test Indicator
-const ICONS = {
-  loading: `<svg class="spin" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle><path d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor"></path></svg>`,
-  success: `<svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
-  failed: `<svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`
-};
 
 // Toast Path Templates
 const TOAST_ICONS = {
@@ -31,13 +22,11 @@ const TOAST_ICONS = {
 document.addEventListener('DOMContentLoaded', () => {
   chrome.storage.local.get(
     {
-      apiKey: '',
       notation: 'both',
       showBpm: true,
       badgeColor: 'green'
     },
     (items) => {
-      apiKeyInput.value = items.apiKey;
       notationSelect.value = items.notation;
       showBpmInput.checked = items.showBpm;
       
@@ -70,49 +59,18 @@ themeButtons.forEach(button => {
 form.addEventListener('submit', (e) => {
   e.preventDefault();
   
-  const apiKey = apiKeyInput.value.trim();
   const notation = notationSelect.value;
   const showBpm = showBpmInput.checked;
   const badgeColor = selectedTheme;
   
   chrome.storage.local.set(
     {
-      apiKey,
       notation,
       showBpm,
       badgeColor
     },
     () => {
       showToast('Settings saved successfully!', 'success');
-    }
-  );
-});
-
-// Test Connection Handler
-btnTest.addEventListener('click', () => {
-  const apiKey = apiKeyInput.value.trim();
-  if (!apiKey) {
-    showToast('Please enter an API Key first', 'error');
-    return;
-  }
-  
-  // Show loading indicator
-  testIndicator.className = 'test-indicator show loading';
-  testIndicator.innerHTML = `${ICONS.loading} <span id="testMessage">Connecting to GetSongBPM...</span>`;
-  
-  chrome.runtime.sendMessage(
-    { action: 'testConnection', apiKey },
-    (response) => {
-      if (response && response.success) {
-        testIndicator.className = 'test-indicator show success';
-        testIndicator.innerHTML = `${ICONS.success} <span id="testMessage">Connection successful! Key is valid.</span>`;
-        showToast('API Key validated!', 'success');
-      } else {
-        const errMsg = response && response.error ? response.error : 'Invalid API Key';
-        testIndicator.className = 'test-indicator show failed';
-        testIndicator.innerHTML = `${ICONS.failed} <span id="testMessage">Connection failed: ${errMsg}</span>`;
-        showToast('API Key validation failed.', 'error');
-      }
     }
   );
 });
@@ -159,7 +117,6 @@ function loadManualOverrides() {
       const itemEl = document.createElement('div');
       itemEl.className = 'override-item';
       
-      // Capitalize song title and artist
       const songTitle = data.title || 'Unknown Song';
       const songArtist = data.artist || 'Unknown Artist';
       const keyVal = data.key || 'Unknown';

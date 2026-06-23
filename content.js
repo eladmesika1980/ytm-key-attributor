@@ -20,7 +20,7 @@ styleEl.textContent = `
     display: inline-flex;
     align-items: center;
     position: relative;
-    margin-left: 12px;
+    margin-left: 16px;
     vertical-align: middle;
     user-select: none;
     font-family: 'Roboto', 'Outfit', sans-serif;
@@ -29,10 +29,10 @@ styleEl.textContent = `
   .ytm-key-badge {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 11px;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 16px;
+    font-size: 13px;
     font-weight: 600;
     letter-spacing: 0.2px;
     cursor: default;
@@ -91,7 +91,7 @@ styleEl.textContent = `
     border-color: rgba(255, 255, 255, 0.25);
   }
   
-  /* Loading state */
+  /* Loading/Listening state */
   .ytm-key-badge.state-loading {
     background: rgba(255, 255, 255, 0.04);
     color: #888888;
@@ -99,23 +99,16 @@ styleEl.textContent = `
     animation: ytm-pulse-loading 1.5s infinite ease-in-out;
   }
   
-  /* Setup needed state */
-  .ytm-key-badge.state-setup {
-    background: rgba(255, 165, 0, 0.12);
-    color: #ffa500;
-    border-color: rgba(255, 165, 0, 0.3);
+  /* Inactive state */
+  .ytm-key-badge.state-inactive {
+    background: rgba(255, 255, 255, 0.05);
+    color: #888888;
+    border-color: rgba(255, 255, 255, 0.1);
     cursor: pointer;
   }
-  .ytm-key-badge.state-setup:hover {
-    background: rgba(255, 165, 0, 0.2);
-    border-color: rgba(255, 165, 0, 0.5);
-  }
-  
-  /* Error / Not Found state */
-  .ytm-key-badge.state-notfound {
-    background: rgba(255, 255, 255, 0.03);
-    color: #666666;
-    border-color: rgba(255, 255, 255, 0.08);
+  .ytm-key-badge.state-inactive:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
   }
   
   @keyframes ytm-pulse-loading {
@@ -384,6 +377,36 @@ function init() {
       forceRedraw();
     }
   });
+
+  // Listen for real-time tuner updates from background service worker
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === "updateKeyBpm") {
+      // Only apply if there is no manual override on the song
+      const songKey = `${currentTitle.toLowerCase().trim()} - ${currentArtist.toLowerCase().trim()}`;
+      chrome.storage.local.get(['keyOverrides'], (storage) => {
+        const overrides = storage.keyOverrides || {};
+        if (overrides[songKey]) {
+          // Keep override display
+          return;
+        }
+        activeData = {
+          key: message.data.key,
+          bpm: message.data.bpm,
+          camelot: message.data.camelot,
+          isOverride: false
+        };
+        renderBadge(activeData);
+      });
+    }
+
+    if (message.action === "tuning-started") {
+      setListeningState();
+    }
+
+    if (message.action === "tuning-stopped") {
+      renderInactiveState();
+    }
+  });
 }
 
 function forceRedraw() {
@@ -438,8 +461,6 @@ function triggerUpdate() {
     // Close override popover if open from a previous track
     closeOverridePopover();
     
-    setLoadingState();
-    
     const lookupKey = `${currentTitle.toLowerCase().trim()} - ${currentArtist.toLowerCase().trim()}`;
     
     // Step 1: Check manual overrides first
@@ -454,40 +475,35 @@ function triggerUpdate() {
       
       if (overrides[lookupKey]) {
         console.log('[YTM Key Attributor] Found manual override:', overrides[lookupKey]);
-        // Load manual override
         activeData = {
           ...overrides[lookupKey],
           isOverride: true
         };
         renderBadge(activeData);
       } else {
-        console.log('[YTM Key Attributor] Requesting key/BPM from background script...');
-        // Step 2: Fallback to background query (API fetch)
-        chrome.runtime.sendMessage(
-          { action: 'fetchKeyBpm', title: currentTitle, artist: currentArtist },
-          (response) => {
-            const currentMetadata = getSongMetadata();
-            if (!currentMetadata || currentMetadata.title !== metadata.title || currentMetadata.artist !== metadata.artist) {
-              return; // Song changed while waiting for API, discard response
-            }
-            
-            console.log('[YTM Key Attributor] Background script response:', response);
-            
-            if (response && response.data) {
-              activeData = response.data;
-              renderBadge(activeData);
-            } else if (response && response.error === 'API_KEY_MISSING') {
-              console.warn('[YTM Key Attributor] API Key is missing. Setup required.');
-              renderSetupState();
-            } else {
-              console.warn('[YTM Key Attributor] Song details not found or error occurred:', response ? response.error : 'No response');
-              if (response && response.rawResults) {
-                console.log('[YTM Key Attributor] Raw search results list returned by API:', response.rawResults);
-              }
-              renderNotFoundState(response ? response.error : 'Not Found');
-            }
+        // Query background service worker about current tuning status
+        chrome.runtime.sendMessage({ action: "query-tuner-status" }, (response) => {
+          if (chrome.runtime.lastError) {
+            renderInactiveState();
+            return;
           }
-        );
+          
+          if (response && response.isTuning) {
+            if (response.data) {
+              activeData = {
+                key: response.data.key,
+                bpm: response.data.bpm,
+                camelot: response.data.camelot,
+                isOverride: false
+              };
+              renderBadge(activeData);
+            } else {
+              setListeningState();
+            }
+          } else {
+            renderInactiveState();
+          }
+        });
       }
     });
   }
@@ -568,20 +584,22 @@ function getOrCreateBadgeElements() {
   };
 }
 
-// Renders the loading animation state
-function setLoadingState() {
+// Renders the loading animation state (Tuner listening)
+function setListeningState() {
   const el = getOrCreateBadgeElements();
   if (!el) return;
   
   el.badge.className = 'ytm-key-badge state-loading';
   el.badge.onclick = null;
-  el.badge.ondblclick = null;
+  el.badge.ondblclick = () => {
+    openOverridePopover({ key: 'Unknown', bpm: 'Unknown', camelot: 'Unknown' });
+  };
   el.badge.innerHTML = `
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
       <circle cx="12" cy="12" r="10" opacity="0.25"></circle>
       <path d="M12 2 A10 10 0 0 1 22 12" stroke-dasharray="16" stroke-dashoffset="0"></path>
     </svg>
-    <span>Analyzing...</span>
+    <span>🎧 Listening...</span>
   `;
   
   if (!document.getElementById('ytm-spinner-styles')) {
@@ -599,39 +617,34 @@ function setLoadingState() {
     document.head.appendChild(s);
   }
   
-  el.tooltip.innerHTML = 'Querying GetSongBPM database...';
+  el.tooltip.innerHTML = 'Analyzing live tab audio stream in real-time.<br>Double-click to manually override.';
 }
 
-// Renders the setup instruction state (if API key missing)
-function renderSetupState() {
+// Keep setLoadingState alias for backward compatibility or initial loads
+function setLoadingState() {
+  setListeningState();
+}
+
+// Renders the inactive tuner state
+function renderInactiveState() {
   const el = getOrCreateBadgeElements();
   if (!el) return;
   
-  el.badge.className = 'ytm-key-badge state-setup';
-  el.badge.innerHTML = `⚠️ Set API Key`;
-  el.badge.onclick = () => {
-    chrome.runtime.sendMessage({ action: 'openOptions' });
-  };
-  el.badge.ondblclick = null;
-  
-  el.tooltip.innerHTML = `Click here to setup your free GetSongBPM API Key in extension settings.`;
-}
-
-// Renders the song not found or error state
-function renderNotFoundState(reason) {
-  const el = getOrCreateBadgeElements();
-  if (!el) return;
-  
-  el.badge.className = 'ytm-key-badge state-notfound color-gray';
+  el.badge.className = 'ytm-key-badge state-inactive';
   el.badge.onclick = null;
-  el.badge.innerHTML = `N/A`;
-  
-  // Enable override even if song not found in API! Double click allows setting key manually.
   el.badge.ondblclick = () => {
     openOverridePopover({ key: 'Unknown', bpm: 'Unknown', camelot: 'Unknown' });
   };
+  el.badge.innerHTML = `
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M9 18V5l12-2v13"></path>
+      <circle cx="6" cy="18" r="3" fill="currentColor"></circle>
+      <circle cx="18" cy="16" r="3" fill="currentColor"></circle>
+    </svg>
+    <span>🎧 Click icon to tune</span>
+  `;
   
-  el.tooltip.innerHTML = `Double-click to manually define Key/BPM.<br><span style="opacity:0.6;font-size:9px">Not in API: ${reason}</span>`;
+  el.tooltip.innerHTML = 'Tuner is inactive.<br>Click the extension icon in your Chrome toolbar to start live tuning.';
 }
 
 // Renders the successful key and BPM attributes
@@ -667,7 +680,7 @@ function renderBadge(data) {
   
   // 2. BPM formatting
   if (activeSettings.showBpm && data.bpm && data.bpm !== 'Unknown') {
-    displayParts.push(`${data.bpm} BPM`);
+    displayParts.push(`${data.bpm === 'Analyzing...' ? 'Analyzing...' : `${data.bpm} BPM`}`);
   }
   
   // Add edit pencil icon to denote manual override status
@@ -676,7 +689,7 @@ function renderBadge(data) {
   
   // Render HTML content
   el.badge.innerHTML = `
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M9 18V5l12-2v13"></path>
       <circle cx="6" cy="18" r="3" fill="currentColor"></circle>
       <circle cx="18" cy="16" r="3" fill="currentColor"></circle>
@@ -685,14 +698,14 @@ function renderBadge(data) {
     ${pencilIcon}
   `;
   
-  // Set complying TOS hover tooltip
+  // Set complies TOS hover tooltip
   if (data.isOverride) {
     el.tooltip.innerHTML = `
       <strong>Manual Override:</strong> Adjusted by user.<br>Double-click to transpose or reset.
     `;
   } else {
     el.tooltip.innerHTML = `
-      <strong>Attribution:</strong> Key & BPM provided by <a href="https://getsongbpm.com" target="_blank" rel="noopener noreferrer">GetSongBPM.com</a>.<br>Double-click to manually transpose.
+      <strong>Real-time Tuner:</strong> Detected locally via Web Audio API DSP.<br>Double-click to manually transpose.
     `;
   }
 }

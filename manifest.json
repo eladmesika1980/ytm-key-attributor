@@ -2,14 +2,17 @@
   "manifest_version": 3,
   "name": "YTM Key Attributor",
   "version": "1.0.0",
-  "description": "Adds musical key and BPM attributes to songs on YouTube Music using GetSongBPM API.",
+  "description": "Adds real-time local DSP musical key and BPM attributes to songs on YouTube Music.",
   "permissions": [
-    "storage"
+    "storage",
+    "tabCapture",
+    "offscreen",
+    "activeTab"
   ],
   "host_permissions": [
-    "https://music.youtube.com/*",
-    "https://api.getsong.co/*"
+    "https://music.youtube.com/*"
   ],
+  "action": {},
   "background": {
     "service_worker": "background.js"
   },
