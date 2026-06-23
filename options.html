@@ -649,6 +649,18 @@
           </div>
         </div>
 
+        <!-- Detections Log (Analysis) -->
+        <div class="form-group overrides-section">
+          <label>Detections Log (For Analysis)</label>
+          <div style="display: flex; gap: 12px; margin-top: 12px; margin-bottom: 12px;">
+            <button type="button" class="btn-secondary" id="btnDownloadLogs" style="padding: 10px 16px; font-size: 12px; flex: 1; border-radius: 8px;">Download CSV</button>
+            <button type="button" class="btn-secondary" id="btnClearLogs" style="padding: 10px 16px; font-size: 12px; flex: 1; border-radius: 8px; border-color: rgba(239, 68, 68, 0.25); color: #ff6b6b; background: rgba(239, 68, 68, 0.05);">Clear Logs</button>
+          </div>
+          <div id="logsSummary" class="helper-text" style="text-align: center; margin-top: 4px;">
+            0 logs recorded.
+          </div>
+        </div>
+
         <!-- Footer Actions -->
         <div class="footer-actions">
           <button type="submit" class="btn-primary" id="btnSave" style="width: 100%; flex: 1;">Save Settings</button>

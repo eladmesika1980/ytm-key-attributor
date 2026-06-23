@@ -164,3 +164,82 @@ function deleteOverride(songKey) {
     }
   });
 }
+
+// Load and display log summary (count of entries)
+function loadDetectionLogsSummary() {
+  const logsSummary = document.getElementById('logsSummary');
+  if (!logsSummary) return;
+
+  chrome.storage.local.get(['detectionLogs'], (result) => {
+    const logs = result.detectionLogs || [];
+    logsSummary.textContent = `${logs.length} log entries recorded.`;
+  });
+}
+
+// Download historical logs as a CSV file
+function downloadLogsAsCsv() {
+  chrome.storage.local.get(['detectionLogs'], (result) => {
+    const logs = result.detectionLogs || [];
+    if (logs.length === 0) {
+      showToast('No logs recorded yet to download.', 'error');
+      return;
+    }
+
+    const headers = ['Timestamp', 'Title', 'Artist', 'Key', 'Camelot', 'Chord', 'BPM', 'Badge Text', 'Is Override'];
+    const csvRows = [headers.join(',')];
+
+    logs.forEach(log => {
+      const row = [
+        log.timestamp,
+        `"${(log.title || '').replace(/"/g, '""')}"`,
+        `"${(log.artist || '').replace(/"/g, '""')}"`,
+        log.key || 'Unknown',
+        log.camelot || 'Unknown',
+        log.chord || 'None',
+        log.bpm || 'Unknown',
+        `"${(log.badgeText || '').replace(/"/g, '""')}"`,
+        log.isOverride ? 'true' : 'false'
+      ];
+      csvRows.push(row.join(','));
+    });
+
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `ytm_key_attributor_detection_log_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showToast('Logs CSV downloaded successfully!', 'success');
+  });
+}
+
+// Clear all recorded logs from storage
+function clearDetectionLogs() {
+  if (confirm('Are you sure you want to clear all recorded detection logs?')) {
+    chrome.storage.local.set({ detectionLogs: [] }, () => {
+      showToast('Detection logs cleared.', 'success');
+      loadDetectionLogsSummary();
+    });
+  }
+}
+
+// Wire up Detection Logs actions
+document.addEventListener('DOMContentLoaded', () => {
+  loadDetectionLogsSummary();
+
+  const btnDownloadLogs = document.getElementById('btnDownloadLogs');
+  const btnClearLogs = document.getElementById('btnClearLogs');
+
+  if (btnDownloadLogs) {
+    btnDownloadLogs.addEventListener('click', downloadLogsAsCsv);
+  }
+  if (btnClearLogs) {
+    btnClearLogs.addEventListener('click', clearDetectionLogs);
+  }
+});

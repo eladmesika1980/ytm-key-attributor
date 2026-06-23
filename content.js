@@ -8,6 +8,7 @@ let activeSettings = {
 };
 let activeData = null; // Store currently loaded song attributes
 let hadMetadata = false; // Guard against console log flood when idle
+let lastLoggedText = ''; // Track last logged badge output to prevent duplicates
 
 // Constants for Transposition
 const PITCH_CLASSES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -482,6 +483,7 @@ function triggerUpdate() {
     currentTitle = metadata.title;
     currentArtist = metadata.artist;
     activeData = null;
+    lastLoggedText = '';
     
     console.log('[YTM Key Attributor] Song changed. Title:', currentTitle, '| Artist:', currentArtist);
     
@@ -758,6 +760,14 @@ function renderBadge(data) {
     ${pencilIcon}
   `;
   
+  // Log the detection if the badge content is updated
+  const badgeText = displayParts.join('  •  ');
+  const logKey = `${currentTitle} - ${currentArtist} - ${badgeText}`;
+  if (logKey !== lastLoggedText) {
+    lastLoggedText = logKey;
+    logDetection(data, badgeText);
+  }
+  
   // Set complies TOS hover tooltip
   if (data.isOverride) {
     el.tooltip.innerHTML = `
@@ -999,3 +1009,68 @@ function parseKeyToCamelot(keyStr) {
   
   return map[normalized] || null;
 }
+
+// Logs active detection data both to the console and to chrome.storage.local
+function logDetection(data, badgeText) {
+  const timestamp = new Date().toISOString();
+  const logEntry = {
+    timestamp,
+    title: currentTitle,
+    artist: currentArtist,
+    key: data.key || 'Unknown',
+    camelot: data.camelot || 'Unknown',
+    chord: data.chord || 'None',
+    bpm: data.bpm || 'Unknown',
+    badgeText,
+    isOverride: data.isOverride || false
+  };
+
+  // Console dump for grepping / real-time monitoring
+  console.log(`[YTM Key Attributor Dump] ${timestamp} | ${currentTitle} - ${currentArtist} | ${badgeText}`);
+
+  // Save to rolling log history in chrome.storage.local
+  chrome.storage.local.get(['detectionLogs'], (result) => {
+    const logs = result.detectionLogs || [];
+    logs.push(logEntry);
+    // Limit log size to 2000 entries
+    if (logs.length > 2000) {
+      logs.shift();
+    }
+    chrome.storage.local.set({ detectionLogs: logs });
+  });
+}
+
+// Expose dump utility globally in the content script context
+window.dumpYtmKeyAttributorLogs = function(format = 'table') {
+  chrome.storage.local.get(['detectionLogs'], (result) => {
+    const logs = result.detectionLogs || [];
+    if (logs.length === 0) {
+      console.log("[YTM Key Attributor Dump] No logs recorded yet.");
+      return;
+    }
+    if (format === 'csv') {
+      const headers = ['Timestamp', 'Title', 'Artist', 'Key', 'Camelot', 'Chord', 'BPM', 'Badge Text', 'Is Override'];
+      const csvRows = [headers.join(',')];
+      logs.forEach(log => {
+        const row = [
+          log.timestamp,
+          `"${log.title.replace(/"/g, '""')}"`,
+          `"${log.artist.replace(/"/g, '""')}"`,
+          log.key,
+          log.camelot,
+          log.chord,
+          log.bpm,
+          `"${log.badgeText.replace(/"/g, '""')}"`,
+          log.isOverride
+        ];
+        csvRows.push(row.join(','));
+      });
+      console.log(csvRows.join('\n'));
+    } else if (format === 'json') {
+      console.log(JSON.stringify(logs, null, 2));
+    } else {
+      console.table(logs);
+    }
+  });
+  return "Retrieving logs...";
+};
