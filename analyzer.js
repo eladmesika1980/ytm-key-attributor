@@ -17,10 +17,28 @@ const CAMELOT_MAJOR = ["8B", "3B", "10B", "5B", "12B", "7B", "2B", "9B", "4B", "
 const CAMELOT_MINOR = ["5A", "12A", "7A", "2A", "9A", "4A", "11A", "6A", "1A", "8A", "3A", "10A"];
 
 // History Buffers for DSP Smoothing
-const CHROMA_HISTORY = [];
-const MAX_CHROMA_HISTORY = 100; // 10 seconds at 100ms sample interval
+const CUMULATIVE_CHROMA = new Float32Array(12);
+const SHORT_CHROMA_HISTORY = [];
+const MAX_SHORT_CHROMA = 15; // 1.5 seconds at 100ms sample interval
 const KEY_CONFIDENCE_HISTORY = [];
 const MAX_KEY_HISTORY = 20;
+
+// Chord templates initialization
+const CHORD_TEMPLATES = [];
+for (let i = 0; i < 12; i++) {
+  // Major: Tonic, Major 3rd (+4), Perfect 5th (+7)
+  CHORD_TEMPLATES.push({
+    name: NOTE_NAMES[i],
+    active: [i, (i + 4) % 12, (i + 7) % 12]
+  });
+  // Minor: Tonic, Minor 3rd (+3), Perfect 5th (+7)
+  CHORD_TEMPLATES.push({
+    name: NOTE_NAMES[i] + "m",
+    active: [i, (i + 3) % 12, (i + 7) % 12]
+  });
+}
+
+let silentFramesCounter = 0;
 
 // BPM / Onset Detection State
 const RMS_HISTORY = [];
@@ -58,10 +76,12 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
 
 function clearHistory() {
   console.log("[YTM Key Attributor Analyzer] Clearing history buffers.");
-  CHROMA_HISTORY.length = 0;
+  CUMULATIVE_CHROMA.fill(0);
+  SHORT_CHROMA_HISTORY.length = 0;
   KEY_CONFIDENCE_HISTORY.length = 0;
   RMS_HISTORY.length = 0;
   BEAT_TIMESTAMPS.length = 0;
+  silentFramesCounter = 0;
 }
 
 // Pearson Correlation Coefficient calculation
@@ -155,7 +175,6 @@ async function startAnalysis(streamId) {
     frameCounter++;
 
     // 1. BPM / Onset Detection (Every ~20ms, or every cycle if interval is 20ms)
-    // To achieve good resolution, we check time-domain volume peaks
     analyserNode.getByteTimeDomainData(timeData);
     let sumSquares = 0;
     for (let i = 0; i < timeData.length; i++) {
@@ -166,6 +185,10 @@ async function startAnalysis(streamId) {
     
     // Check if the signal is silent (idle) to avoid sampling when music is paused/silent
     if (rms < 0.0005) {
+      silentFramesCounter++;
+      if (silentFramesCounter >= 250) { // 5 seconds of silence
+        clearHistory();
+      }
       if (frameCounter % 25 === 0) { // Send updates occasionally to avoid message flood
         chrome.runtime.sendMessage({
           action: "update-analysis-results",
@@ -173,12 +196,14 @@ async function startAnalysis(streamId) {
             isIdle: true,
             bpm: "Paused",
             key: "Unknown",
-            camelot: "Unknown"
+            camelot: "Unknown",
+            chord: "None"
           }
         }).catch(() => {});
       }
       return;
     }
+    silentFramesCounter = 0;
     
     // Add to history
     RMS_HISTORY.push(rms);
@@ -229,21 +254,26 @@ async function startAnalysis(streamId) {
         chroma[pitchClass] += amplitude;
       }
       
-      // Add chroma vector to rolling window history
-      CHROMA_HISTORY.push(chroma);
-      if (CHROMA_HISTORY.length > MAX_CHROMA_HISTORY) {
-        CHROMA_HISTORY.shift();
+      // Add chroma to cumulative array (Overall Key Tracker)
+      for (let p = 0; p < 12; p++) {
+        CUMULATIVE_CHROMA[p] += chroma[p];
       }
       
-      // Sum history chroma vectors to obtain smooth rolling average chroma profile
-      const avgChroma = new Float32Array(12);
-      for (let h = 0; h < CHROMA_HISTORY.length; h++) {
+      // Add chroma vector to short-term rolling window history (Live Chord Tracker)
+      SHORT_CHROMA_HISTORY.push(chroma);
+      if (SHORT_CHROMA_HISTORY.length > MAX_SHORT_CHROMA) {
+        SHORT_CHROMA_HISTORY.shift();
+      }
+      
+      // Sum short-term history to obtain smooth short average chroma profile
+      const avgShortChroma = new Float32Array(12);
+      for (let h = 0; h < SHORT_CHROMA_HISTORY.length; h++) {
         for (let p = 0; p < 12; p++) {
-          avgChroma[p] += CHROMA_HISTORY[h][p];
+          avgShortChroma[p] += SHORT_CHROMA_HISTORY[h][p];
         }
       }
       
-      // Find maximum correlation against 24 profiles
+      // Find maximum correlation against 24 key profiles using CUMULATIVE_CHROMA
       let bestKeyName = "Unknown";
       let bestCamelot = "Unknown";
       let maxCorrelation = -1;
@@ -251,7 +281,7 @@ async function startAnalysis(streamId) {
       for (let root = 0; root < 12; root++) {
         // Test Major Key profile
         const rotatedMajor = rotateProfile(MAJOR_PROFILE, root);
-        const rMajor = pearsonCorrelation(avgChroma, rotatedMajor);
+        const rMajor = pearsonCorrelation(CUMULATIVE_CHROMA, rotatedMajor);
         if (rMajor > maxCorrelation) {
           maxCorrelation = rMajor;
           bestKeyName = NOTE_NAMES[root] + " Major";
@@ -260,7 +290,7 @@ async function startAnalysis(streamId) {
         
         // Test Minor Key profile
         const rotatedMinor = rotateProfile(MINOR_PROFILE, root);
-        const rMinor = pearsonCorrelation(avgChroma, rotatedMinor);
+        const rMinor = pearsonCorrelation(CUMULATIVE_CHROMA, rotatedMinor);
         if (rMinor > maxCorrelation) {
           maxCorrelation = rMinor;
           bestKeyName = NOTE_NAMES[root] + " Minor";
@@ -302,6 +332,23 @@ async function startAnalysis(streamId) {
       // Only lock the key if we have a stable signal
       const confidence = maxVoteScore / KEY_CONFIDENCE_HISTORY.length;
       
+      // Detect currently playing chord using template matching on short-term chroma
+      let bestChordName = "None";
+      let maxChordScore = -Infinity;
+      const shortTotalEnergy = avgShortChroma.reduce((sum, val) => sum + val, 0);
+      
+      if (shortTotalEnergy > 0.01) {
+        CHORD_TEMPLATES.forEach(tmpl => {
+          const chordEnergy = tmpl.active.reduce((sum, idx) => sum + avgShortChroma[idx], 0);
+          const nonChordEnergy = shortTotalEnergy - chordEnergy;
+          const score = chordEnergy - 0.6 * nonChordEnergy;
+          if (score > maxChordScore) {
+            maxChordScore = score;
+            bestChordName = tmpl.name;
+          }
+        });
+      }
+      
       const estimatedBpm = estimateBpm();
       
       // Relay analysis results back to the background worker
@@ -310,10 +357,11 @@ async function startAnalysis(streamId) {
         data: {
           key: finalKey !== "Unknown" ? finalKey : "Unknown",
           camelot: finalCamelot !== "Unknown" ? finalCamelot : "Unknown",
+          chord: bestChordName !== "None" ? bestChordName : "...",
           bpm: estimatedBpm ? String(estimatedBpm) : "Analyzing...",
           confidence: confidence
         }
-      });
+      }).catch(() => {});
     }
   }, 20); // 20ms update frequency
 }
@@ -346,8 +394,10 @@ function stopAnalysis() {
   }
   
   // Clear buffers
-  CHROMA_HISTORY.length = 0;
+  CUMULATIVE_CHROMA.fill(0);
+  SHORT_CHROMA_HISTORY.length = 0;
   KEY_CONFIDENCE_HISTORY.length = 0;
   RMS_HISTORY.length = 0;
   BEAT_TIMESTAMPS.length = 0;
+  silentFramesCounter = 0;
 }

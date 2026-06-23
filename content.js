@@ -413,6 +413,7 @@ function init() {
           key: message.data.key,
           bpm: message.data.bpm,
           camelot: message.data.camelot,
+          chord: message.data.chord,
           isOverride: false,
           isPaused: false
         };
@@ -523,6 +524,7 @@ function triggerUpdate() {
                 key: response.data.key,
                 bpm: response.data.bpm,
                 camelot: response.data.camelot,
+                chord: response.data.chord,
                 isOverride: false,
                 isPaused: response.data.isIdle || false
               };
@@ -706,19 +708,29 @@ function renderBadge(data) {
   // Build representation based on display settings
   let displayParts = [];
   
-  // 1. Key notation formatting
+  // 1. Key & Chord formatting
+  let keyAndChordStr = '';
+  
+  // Key notation formatting
+  let keyStr = 'Key: Unknown';
   if (data.key && data.key !== 'Unknown') {
     if (activeSettings.notation === 'standard') {
-      displayParts.push(`Key: ${data.key}`);
+      keyStr = `Key: ${data.key}`;
     } else if (activeSettings.notation === 'camelot') {
-      displayParts.push(`Key: ${data.camelot}`);
+      keyStr = `Key: ${data.camelot}`;
     } else {
       // 'both'
-      displayParts.push(`Key: ${data.key} (${data.camelot})`);
+      keyStr = `Key: ${data.key} (${data.camelot})`;
     }
-  } else {
-    displayParts.push('Key: Unknown');
   }
+  keyAndChordStr = keyStr;
+  
+  // Live Chord formatting (if available and not a manual override)
+  if (data.chord && data.chord !== 'None' && !data.isOverride) {
+    keyAndChordStr += ` | Chord: ${data.chord}`;
+  }
+  
+  displayParts.push(keyAndChordStr);
   
   // 2. BPM formatting
   if (activeSettings.showBpm && data.bpm && data.bpm !== 'Unknown') {
