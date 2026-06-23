@@ -48,7 +48,21 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     sendResponse({ success: true });
     return true;
   }
+
+  if (message.action === "reset-history") {
+    clearHistory();
+    sendResponse({ success: true });
+    return true;
+  }
 });
+
+function clearHistory() {
+  console.log("[YTM Key Attributor Analyzer] Clearing history buffers.");
+  CHROMA_HISTORY.length = 0;
+  KEY_CONFIDENCE_HISTORY.length = 0;
+  RMS_HISTORY.length = 0;
+  BEAT_TIMESTAMPS.length = 0;
+}
 
 // Pearson Correlation Coefficient calculation
 function pearsonCorrelation(x, y) {
@@ -149,6 +163,22 @@ async function startAnalysis(streamId) {
       sumSquares += normalized * normalized;
     }
     const rms = Math.sqrt(sumSquares / timeData.length);
+    
+    // Check if the signal is silent (idle) to avoid sampling when music is paused/silent
+    if (rms < 0.0005) {
+      if (frameCounter % 25 === 0) { // Send updates occasionally to avoid message flood
+        chrome.runtime.sendMessage({
+          action: "update-analysis-results",
+          data: {
+            isIdle: true,
+            bpm: "Paused",
+            key: "Unknown",
+            camelot: "Unknown"
+          }
+        }).catch(() => {});
+      }
+      return;
+    }
     
     // Add to history
     RMS_HISTORY.push(rms);

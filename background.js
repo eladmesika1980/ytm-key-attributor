@@ -161,6 +161,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // Handle resetting tuner history buffers
+  if (message.action === "reset-history") {
+    chrome.runtime.sendMessage({ action: "reset-history" }).catch(() => {});
+    sendResponse({ success: true });
+    return true;
+  }
+
   // Handle opening settings options page
   if (message.action === "openOptions") {
     chrome.runtime.openOptionsPage();

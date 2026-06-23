@@ -7,6 +7,7 @@ let activeSettings = {
   badgeColor: 'green' // 'green', 'blue', 'purple', 'gray'
 };
 let activeData = null; // Store currently loaded song attributes
+let hadMetadata = false; // Guard against console log flood when idle
 
 // Constants for Transposition
 const PITCH_CLASSES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -109,6 +110,13 @@ styleEl.textContent = `
   .ytm-key-badge.state-inactive:hover {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.2);
+  }
+  
+  /* Paused state */
+  .ytm-key-badge.state-paused {
+    opacity: 0.65;
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.08);
   }
   
   @keyframes ytm-pulse-loading {
@@ -389,11 +397,24 @@ function init() {
           // Keep override display
           return;
         }
+        
+        if (message.data.isIdle) {
+          // Tuner is idle/paused
+          if (activeData) {
+            activeData.isPaused = true;
+            renderBadge(activeData);
+          } else {
+            setListeningState(true);
+          }
+          return;
+        }
+        
         activeData = {
           key: message.data.key,
           bpm: message.data.bpm,
           camelot: message.data.camelot,
-          isOverride: false
+          isOverride: false,
+          isPaused: false
         };
         renderBadge(activeData);
       });
@@ -446,9 +467,14 @@ function observePlayerBar() {
 function triggerUpdate() {
   const metadata = getSongMetadata();
   if (!metadata) {
-    console.log('[YTM Key Attributor] No song metadata found in DOM.');
+    if (hadMetadata) {
+      console.log('[YTM Key Attributor] Idle: no active song metadata.');
+      hadMetadata = false;
+    }
     return;
   }
+  
+  hadMetadata = true;
   
   // Only query if the song has changed
   if (metadata.title !== currentTitle || metadata.artist !== currentArtist) {
@@ -460,6 +486,9 @@ function triggerUpdate() {
     
     // Close override popover if open from a previous track
     closeOverridePopover();
+    
+    // Reset the audio analyzer history in the background document
+    chrome.runtime.sendMessage({ action: "reset-history" }).catch(() => {});
     
     const lookupKey = `${currentTitle.toLowerCase().trim()} - ${currentArtist.toLowerCase().trim()}`;
     
@@ -494,7 +523,8 @@ function triggerUpdate() {
                 key: response.data.key,
                 bpm: response.data.bpm,
                 camelot: response.data.camelot,
-                isOverride: false
+                isOverride: false,
+                isPaused: response.data.isIdle || false
               };
               renderBadge(activeData);
             } else {
@@ -585,22 +615,36 @@ function getOrCreateBadgeElements() {
 }
 
 // Renders the loading animation state (Tuner listening)
-function setListeningState() {
+function setListeningState(isPaused = false) {
   const el = getOrCreateBadgeElements();
   if (!el) return;
   
-  el.badge.className = 'ytm-key-badge state-loading';
+  el.badge.className = isPaused ? 'ytm-key-badge state-paused' : 'ytm-key-badge state-loading';
   el.badge.onclick = null;
   el.badge.ondblclick = () => {
     openOverridePopover({ key: 'Unknown', bpm: 'Unknown', camelot: 'Unknown' });
   };
-  el.badge.innerHTML = `
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
-      <circle cx="12" cy="12" r="10" opacity="0.25"></circle>
-      <path d="M12 2 A10 10 0 0 1 22 12" stroke-dasharray="16" stroke-dashoffset="0"></path>
-    </svg>
-    <span>🎧 Listening...</span>
-  `;
+  
+  if (isPaused) {
+    el.badge.innerHTML = `
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 18V5l12-2v13"></path>
+        <circle cx="6" cy="18" r="3" fill="currentColor"></circle>
+        <circle cx="18" cy="16" r="3" fill="currentColor"></circle>
+      </svg>
+      <span>🎧 Listening (Paused)</span>
+    `;
+    el.tooltip.innerHTML = 'Music is paused. Audio tuner is waiting to resume.<br>Double-click to manually override.';
+  } else {
+    el.badge.innerHTML = `
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+        <circle cx="12" cy="12" r="10" opacity="0.25"></circle>
+        <path d="M12 2 A10 10 0 0 1 22 12" stroke-dasharray="16" stroke-dashoffset="0"></path>
+      </svg>
+      <span>🎧 Listening...</span>
+    `;
+    el.tooltip.innerHTML = 'Analyzing live tab audio stream in real-time.<br>Double-click to manually override.';
+  }
   
   if (!document.getElementById('ytm-spinner-styles')) {
     const s = document.createElement('style');
@@ -616,8 +660,6 @@ function setListeningState() {
     `;
     document.head.appendChild(s);
   }
-  
-  el.tooltip.innerHTML = 'Analyzing live tab audio stream in real-time.<br>Double-click to manually override.';
 }
 
 // Keep setLoadingState alias for backward compatibility or initial loads
@@ -653,7 +695,7 @@ function renderBadge(data) {
   if (!el) return;
   
   const badgeColor = activeSettings.badgeColor;
-  el.badge.className = `ytm-key-badge color-${badgeColor}`;
+  el.badge.className = `ytm-key-badge color-${badgeColor} ${data.isPaused ? 'state-paused' : ''}`;
   el.badge.onclick = null;
   
   // Set double-click listener to open manual override dialog
@@ -680,7 +722,13 @@ function renderBadge(data) {
   
   // 2. BPM formatting
   if (activeSettings.showBpm && data.bpm && data.bpm !== 'Unknown') {
-    displayParts.push(`${data.bpm === 'Analyzing...' ? 'Analyzing...' : `${data.bpm} BPM`}`);
+    if (data.isPaused) {
+      displayParts.push(`Paused`);
+    } else {
+      displayParts.push(`${data.bpm === 'Analyzing...' ? 'Analyzing...' : `${data.bpm} BPM`}`);
+    }
+  } else if (data.isPaused) {
+    displayParts.push(`Paused`);
   }
   
   // Add edit pencil icon to denote manual override status
