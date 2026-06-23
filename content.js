@@ -391,35 +391,30 @@ function init() {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === "updateKeyBpm") {
       // Only apply if there is no manual override on the song
-      const songKey = `${currentTitle.toLowerCase().trim()} - ${currentArtist.toLowerCase().trim()}`;
-      chrome.storage.local.get(['keyOverrides'], (storage) => {
-        const overrides = storage.keyOverrides || {};
-        if (overrides[songKey]) {
-          // Keep override display
-          return;
+      if (activeData && activeData.isOverride) {
+        return;
+      }
+      
+      if (message.data.isIdle) {
+        // Tuner is idle/paused
+        if (activeData) {
+          activeData.isPaused = true;
+          renderBadge(activeData);
+        } else {
+          setListeningState(true);
         }
-        
-        if (message.data.isIdle) {
-          // Tuner is idle/paused
-          if (activeData) {
-            activeData.isPaused = true;
-            renderBadge(activeData);
-          } else {
-            setListeningState(true);
-          }
-          return;
-        }
-        
-        activeData = {
-          key: message.data.key,
-          bpm: message.data.bpm,
-          camelot: message.data.camelot,
-          chord: message.data.chord,
-          isOverride: false,
-          isPaused: false
-        };
-        renderBadge(activeData);
-      });
+        return;
+      }
+      
+      activeData = {
+        key: message.data.key,
+        bpm: message.data.bpm,
+        camelot: message.data.camelot,
+        chord: message.data.chord,
+        isOverride: false,
+        isPaused: false
+      };
+      renderBadge(activeData);
     }
 
     if (message.action === "tuning-started") {
@@ -716,13 +711,18 @@ function renderBadge(data) {
   // Key notation formatting
   let keyStr = 'Key: Unknown';
   if (data.key && data.key !== 'Unknown') {
+    let camelotVal = data.camelot;
+    if (!camelotVal || camelotVal === 'Unknown') {
+      camelotVal = parseKeyToCamelot(data.key) || 'Unknown';
+    }
+    
     if (activeSettings.notation === 'standard') {
       keyStr = `Key: ${data.key}`;
     } else if (activeSettings.notation === 'camelot') {
-      keyStr = `Key: ${data.camelot}`;
+      keyStr = `Key: ${camelotVal}`;
     } else {
       // 'both'
-      keyStr = `Key: ${data.key} (${data.camelot})`;
+      keyStr = `Key: ${data.key} (${camelotVal})`;
     }
   }
   keyAndChordStr = keyStr;

@@ -20,8 +20,6 @@ const CAMELOT_MINOR = ["5A", "12A", "7A", "2A", "9A", "4A", "11A", "6A", "1A", "
 const CUMULATIVE_CHROMA = new Float32Array(12);
 const SHORT_CHROMA_HISTORY = [];
 const MAX_SHORT_CHROMA = 15; // 1.5 seconds at 100ms sample interval
-const KEY_CONFIDENCE_HISTORY = [];
-const MAX_KEY_HISTORY = 20;
 
 // Chord templates initialization
 const CHORD_TEMPLATES = [];
@@ -78,27 +76,35 @@ function clearHistory() {
   console.log("[YTM Key Attributor Analyzer] Clearing history buffers.");
   CUMULATIVE_CHROMA.fill(0);
   SHORT_CHROMA_HISTORY.length = 0;
-  KEY_CONFIDENCE_HISTORY.length = 0;
   RMS_HISTORY.length = 0;
   BEAT_TIMESTAMPS.length = 0;
   silentFramesCounter = 0;
 }
 
-// Pearson Correlation Coefficient calculation
+// Numerically stable Pearson Correlation Coefficient calculation
 function pearsonCorrelation(x, y) {
   const n = x.length;
-  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+  let meanX = 0, meanY = 0;
   for (let i = 0; i < n; i++) {
-    sumX += x[i];
-    sumY += y[i];
-    sumXY += x[i] * y[i];
-    sumX2 += x[i] * x[i];
-    sumY2 += y[i] * y[i];
+    meanX += x[i];
+    meanY += y[i];
   }
-  const num = (n * sumXY) - (sumX * sumY);
-  const den = Math.sqrt(((n * sumX2) - (sumX * sumX)) * ((n * sumY2) - (sumY * sumY)));
-  if (den === 0) return 0;
-  return num / den;
+  meanX /= n;
+  meanY /= n;
+  
+  let num = 0;
+  let denX = 0;
+  let denY = 0;
+  for (let i = 0; i < n; i++) {
+    const diffX = x[i] - meanX;
+    const diffY = y[i] - meanY;
+    num += diffX * diffY;
+    denX += diffX * diffX;
+    denY += diffY * diffY;
+  }
+  
+  if (denX === 0 || denY === 0) return 0;
+  return num / Math.sqrt(denX * denY);
 }
 
 // Rotates a profile array to candidate tonic position
@@ -298,39 +304,15 @@ async function startAnalysis(streamId) {
         }
       }
       
-      // Filter out low confidence frames to avoid jitter
-      if (maxCorrelation > 0.5) {
-        KEY_CONFIDENCE_HISTORY.push({ key: bestKeyName, camelot: bestCamelot, score: maxCorrelation });
-      } else {
-        KEY_CONFIDENCE_HISTORY.push({ key: "Unknown", camelot: "Unknown", score: 0 });
-      }
-      
-      if (KEY_CONFIDENCE_HISTORY.length > MAX_KEY_HISTORY) {
-        KEY_CONFIDENCE_HISTORY.shift();
-      }
-      
-      // Determine the most common key in our voting window
-      const votes = {};
-      KEY_CONFIDENCE_HISTORY.forEach(item => {
-        if (item.key !== "Unknown") {
-          votes[item.key] = (votes[item.key] || 0) + item.score;
-        }
-      });
-      
+      // Determine final key and camelot directly based on CUMULATIVE_CHROMA correlation
       let finalKey = "Unknown";
       let finalCamelot = "Unknown";
-      let maxVoteScore = 0;
-      
-      Object.keys(votes).forEach(keyName => {
-        if (votes[keyName] > maxVoteScore) {
-          maxVoteScore = votes[keyName];
-          finalKey = keyName;
-          finalCamelot = KEY_CONFIDENCE_HISTORY.find(i => i.key === keyName).camelot;
-        }
-      });
-      
-      // Only lock the key if we have a stable signal
-      const confidence = maxVoteScore / KEY_CONFIDENCE_HISTORY.length;
+      // Threshold 0.35 is perfect for cumulative chroma correlation
+      if (maxCorrelation > 0.35) {
+        finalKey = bestKeyName;
+        finalCamelot = bestCamelot;
+      }
+      const confidence = maxCorrelation;
       
       // Detect currently playing chord using template matching on short-term chroma
       let bestChordName = "None";
@@ -396,7 +378,6 @@ function stopAnalysis() {
   // Clear buffers
   CUMULATIVE_CHROMA.fill(0);
   SHORT_CHROMA_HISTORY.length = 0;
-  KEY_CONFIDENCE_HISTORY.length = 0;
   RMS_HISTORY.length = 0;
   BEAT_TIMESTAMPS.length = 0;
   silentFramesCounter = 0;
