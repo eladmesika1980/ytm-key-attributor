@@ -805,9 +805,9 @@ function openOverridePopover(data) {
   // Mark container as popover-open to disable hover tooltip
   el.container.classList.add('popover-open');
   
-  // Parse current values
-  let currentKeyVal = data.key || 'Unknown';
-  let currentBpmVal = data.bpm || '120';
+  // Parse current values and escape them to prevent XSS
+  let currentKeyVal = escapeHtml(data.key || 'Unknown');
+  let currentBpmVal = escapeHtml(data.bpm || '120');
   
   // Generate HTML for the popover panel
   el.popover.innerHTML = `
@@ -1074,3 +1074,13 @@ window.dumpYtmKeyAttributorLogs = function(format = 'table') {
   });
   return "Retrieving logs...";
 };
+
+// HTML escaping helper to prevent DOM XSS vulnerabilities
+function escapeHtml(str) {
+  return (str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
